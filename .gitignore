@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+.venv/
+venv/
+.newsletterz/
+
+# Environment
+.env
+.env.*
+
+# Credentials
+config/*.json
+
+# IDE
+.vscode/
+.idea/
+
+# Vector DB
+data/
+*.sqlite
+*.db
+
+# Logs
+*.log

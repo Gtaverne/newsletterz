@@ -1,0 +1,22 @@
+services:
+  chroma:
+    image: ghcr.io/chroma-core/chroma:latest
+    environment:
+      - ALLOW_RESET=true
+      - CHROMA_SERVER_AUTH_CREDENTIALS_FILE=/auth_credentials.json
+      - CHROMA_SERVER_AUTH_CREDENTIALS=admin:admin
+      - CHROMA_SERVER_AUTH_TYPE=basic
+    volumes:
+      - chroma_data:/chroma/chroma
+    ports:
+      - "8183:8000"
+    networks:
+      - chroma_net
+
+volumes:
+  chroma_data:
+    driver: local
+
+networks:
+  chroma_net:
+    driver: bridge
