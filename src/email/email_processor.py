@@ -211,4 +211,5 @@ if __name__ == "__main__":
     processor.setup_collection()
     # Process emails since Jan 1st 2025
     start_date = datetime(2024, 7, 1)
+    # processor.process_emails(start_date=start_date)
     processor.process_emails(start_date=start_date)

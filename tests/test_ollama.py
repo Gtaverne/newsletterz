@@ -1,21 +1,29 @@
 import httpx
+import time
 
-def test_ollama():
+def wait_for_ollama(timeout=60):
+    """Wait for Ollama to be ready, with timeout"""
+    start_time = time.time()
     url = "http://localhost:11434/api/embeddings"
-    text = "This is a test"
     
-    try:
-        response = httpx.post(
-            url,
-            json={"model": "mxbai-embed-large", "prompt": text}
-        )
-        result = response.json()
-        print("Embedding length:", len(result["embedding"]))
-        print("First few values:", result["embedding"][:5])
-        return True
-    except Exception as e:
-        print(f"Ollama test failed: {e}")
-        return False
+    while time.time() - start_time < timeout:
+        try:
+            # Try a simple embedding request
+            response = httpx.post(
+                url,
+                json={"model": "llama3", "prompt": "test"},
+                timeout=5.0
+            )
+            if response.status_code == 200:
+                print("Ollama is ready!")
+                print(f"Model response: {response.json()}")
+                return True
+        except Exception as e:
+            print(f"Waiting for Ollama... ({str(e)})")
+            time.sleep(2)
+            
+    print("Timeout waiting for Ollama")
+    return False
 
 if __name__ == "__main__":
-    test_ollama()
+    wait_for_ollama()
