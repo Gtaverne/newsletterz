@@ -31,7 +31,7 @@ def create_results_table(results, query_type):
 async def main():
     parser = argparse.ArgumentParser(description='Search emails using natural language')
     parser.add_argument('query', help='Natural language search query')
-    parser.add_argument('--limit', type=int, default=10000, help='Maximum number of results')
+    parser.add_argument('--limit', type=int, default=1000, help='Maximum number of results')
     args = parser.parse_args()
     
     console = Console()
