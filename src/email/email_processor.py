@@ -95,7 +95,7 @@ def analyze_email_length(email: Dict) -> Dict:
     }
 
 class EmailProcessor:
-    def __init__(self, credentials_path: str, batch_size: int = 50):  # Reduced batch size
+    def __init__(self, credentials_path: str, batch_size: int = 200):  
         self.gmail = GmailFetcher(credentials_path)
         self.batch_size = batch_size
         self.chroma = HttpClient(
@@ -144,11 +144,10 @@ class EmailProcessor:
             metadata = {
                 "email_id": email['id'],
                 "thread_id": email['thread_id'],
-                "date": email['internal_date'],
+                "date": int(date_obj.timestamp()),  # Convert to Unix timestamp
                 "subject": email['headers'].get('subject', 'No Subject'),
                 "from": from_field,
                 "company": company,
-                "year_month": date_obj.strftime('%Y-%m'),
                 "content_length": len(email['clean_text'])
             }
             
@@ -338,7 +337,6 @@ if __name__ == "__main__":
     # Example usage
     processor = EmailProcessor("../secrets/credentials.json")
     # processor.reset_database()
-    processor.reset_database()
 
-    start_date = datetime(2024, 11, 1)  # Process emails from 2023
+    start_date = datetime(2024, 1, 1)  # Process emails from 2023
     processor.process_emails(start_date=start_date)

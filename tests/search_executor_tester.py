@@ -12,15 +12,15 @@ async def debug_chrome_content():
     
     # Get all documents
     results = executor.collection.get(
-        include=['metadatas'],
+        include=['metadatas', 'documents'],
         limit=5
     )
     
     print("\nChromaDB Content Sample:")
     for metadata in results['metadatas']:
-        print(f"From: {metadata.get('from')}")
-        print(f"Company: {metadata.get('company')}")
-        print(f"Subject: {metadata.get('subject')}")
+        print(f"\nMetadata fields:")
+        for key, value in metadata.items():
+            print(f"{key}: {value}")
         print("---")
 
 @pytest.mark.asyncio
@@ -39,6 +39,10 @@ async def test_basic_search():
     
     result = await executor.execute_search(intent, limit=5)
     print("\nBasic Search Results:")
+    if result.get('type') == 'error':
+        print(f"Error: {result.get('message')}")
+        return
+        
     print(f"Type: {result['type']}")
     print(f"Total results: {result.get('total_results', 0)}")
     if result.get('results'):
@@ -46,7 +50,7 @@ async def test_basic_search():
             print(f"\nSubject: {r['subject']}")
             print(f"From: {r['from']}")
             print(f"Company: {r.get('company', 'unknown')}")
-            print(f"Relevance: {r['relevance']:.3f}")
+            print(f"Distance: {r['distance']:.3f} (lower = better match)")
             print(f"Preview: {r['content'][:100]}...")
 
 @pytest.mark.asyncio
@@ -80,13 +84,18 @@ async def test_company_groups():
     for intent in intents:
         result = await executor.execute_search(intent, limit=5)
         print(f"\nCompany Group Search Results ({','.join(intent.filters.companies)}):")
+        if result.get('type') == 'error':
+            print(f"Error: {result.get('message')}")
+            continue
+            
         print(f"Total results: {result.get('total_results', 0)}")
         if result.get('results'):
             for r in result['results'][:2]:
                 print(f"\nFrom: {r['from']}")
                 print(f"Company: {r.get('company', 'unknown')}")
                 print(f"Subject: {r['subject']}")
-                print(f"Relevance: {r['relevance']:.3f}")
+                print(f"Distance: {r['distance']:.3f} (lower = better match)")
+
 
 @pytest.mark.asyncio
 async def test_date_filtered_search():
@@ -98,9 +107,9 @@ async def test_date_filtered_search():
     
     intent = QueryIntent(
         type="list",
-        topic="cloud computing",
+        topic="AI",
         filters=FilterConfig(
-            companies=["deloitte"],  # Single company
+            companies=["mckinsey"],  # Single company
             time_range=TimeRange(
                 start=start_date,
                 end=end_date,
@@ -112,6 +121,10 @@ async def test_date_filtered_search():
     
     result = await executor.execute_search(intent, limit=5)
     print("\nDate Filtered Search Results:")
+    if result.get('type') == 'error':
+        print(f"Error: {result.get('message')}")
+        return
+        
     print(f"Time range: Last 90 days")
     print(f"Total results: {result.get('total_results', 0)}")
     if result.get('results'):
@@ -120,6 +133,8 @@ async def test_date_filtered_search():
             print(f"Subject: {r['subject']}")
             print(f"From: {r['from']}")
             print(f"Company: {r.get('company', 'unknown')}")
+            print(f"Distance: {r['distance']:.3f} (lower = better match)")
+
 
 @pytest.mark.asyncio
 async def test_international_orgs():
@@ -138,13 +153,18 @@ async def test_international_orgs():
     
     result = await executor.execute_search(intent, limit=5)
     print("\nInternational Orgs Search Results:")
+    if result.get('type') == 'error':
+        print(f"Error: {result.get('message')}")
+        return
+        
     print(f"Total results: {result.get('total_results', 0)}")
     if result.get('results'):
         for r in result['results'][:2]:
             print(f"\nFrom: {r['from']}")
             print(f"Company: {r.get('company', 'unknown')}")
             print(f"Subject: {r['subject']}")
-            print(f"Relevance: {r['relevance']:.3f}")
+            print(f"Distance: {r['distance']:.3f} (lower = better match)")
+
 
 @pytest.mark.asyncio
 async def test_tech_companies():
@@ -163,18 +183,18 @@ async def test_tech_companies():
     
     result = await executor.execute_search(intent, limit=5)
     print("\nTech Companies Search Results:")
+    if result.get('type') == 'error':
+        print(f"Error: {result.get('message')}")
+        return
+        
     print(f"Total results: {result.get('total_results', 0)}")
     if result.get('results'):
         for r in result['results'][:2]:
             print(f"\nFrom: {r['from']}")
             print(f"Company: {r.get('company', 'unknown')}")
             print(f"Subject: {r['subject']}")
-            print(f"Relevance: {r['relevance']:.3f}")
+            print(f"Distance: {r['distance']:.3f} (lower = better match)")
 
-@pytest.mark.asyncio
-async def test_negative_search():
-    executor = SearchExecutor()
-    # Search results from mck's competitors
 
 async def run_all_tests():
     """Run all tests sequentially"""

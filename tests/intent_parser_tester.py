@@ -93,6 +93,18 @@ async def test_multiple_topics():
               for keyword in result.filters.keywords)
     assert any("machine learning" in keyword.lower() 
               for keyword in result.filters.keywords)
+    
+async def test_negative_search():
+    parser = IntentParser()
+    query = "what are McKinsey's competitors saying about AI?"
+    
+    result = await parser.parse(query)
+    print(f"\nResult for negative search:\n{result.model_dump_json(indent=2)}")
+    
+    assert isinstance(result, QueryIntent)
+    assert "mckinsey" not in result.filters.companies
+    assert any(company in result.filters.companies for company in ["bcg", "bain", "deloitte", "pwc", "ey", "kpmg"])
+    assert "ai" in result.topic.lower()
 
 if __name__ == "__main__":
     # Run a single test with more detailed output
@@ -111,6 +123,9 @@ if __name__ == "__main__":
         
         print("\n=== Testing Multiple Topics ===")
         await test_multiple_topics()
+
+        print("\n=== Testing Negative Search ===")
+        await test_negative_search()
         
         print("\nAll tests completed successfully!")
         
