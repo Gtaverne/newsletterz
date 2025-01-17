@@ -19,7 +19,7 @@ class SearchInterface:
     def __init__(self, verbose: bool = False):
         self.verbose = verbose
         self.display_limit = 20
-        self.search_limit = 500
+        self.search_limit = 4000
         self.is_running = True
         self.console = Console()
 

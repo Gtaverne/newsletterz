@@ -18,18 +18,16 @@ class SearchExecutor:
         self.collection = self.chroma.get_collection("emails")
         self.embeddings_url = "http://localhost:11434/api/embeddings"
         self.verbose = verbose
-        
-    def _get_embedding(self, text: str) -> List[float]:
+
+    async def _get_embedding(self, text: str) -> List[float]:
         """Get embedding using mxbai-embed-large model"""
-        try:
-            response = httpx.post(
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
                 self.embeddings_url,
                 json={"model": "mxbai-embed-large", "prompt": text},
                 timeout=30.0
             )
             return response.json()["embedding"]
-        except Exception as e:
-            raise Exception(f"Failed to get embedding: {str(e)}")
 
     def _build_company_filter(self, companies: List[str]) -> Optional[Dict]:
         """
@@ -225,102 +223,84 @@ class SearchExecutor:
         return consolidated
 
     async def execute_search(self, intent: QueryIntent, limit: int = 1000) -> Dict:
-        """Execute a search based on parsed intent
-        
-        Args:
-            intent: The parsed query intent
-            limit: Maximum number of results to return
-            
-        Returns:
-            Dict containing search results and metadata
-        """
-        # Build filters (company, date, etc.)
+        """Execute a search based on parsed intent with relevance threshold"""
         company_filter = self._build_company_filter(intent.filters.companies)
         date_filter = self._build_date_filter(intent.filters.time_range.model_dump() 
                                             if intent.filters.time_range else None)
         where_filter = self._combine_filters([company_filter, date_filter])
 
-        # Build rich semantic query
         semantic_query = self._build_semantic_query(
             intent.topic,
             getattr(intent, 'semantic_context', {})
         )
         
         if self.verbose:
-            print("\nExecuting search:")
-            print(f"Semantic query: {semantic_query}")
+            print(f"\nExecuting search: {semantic_query}")
             if where_filter:
                 print(f"Filters: {where_filter}")
 
-        # Get embeddings for semantic search
-        query_embedding = self._get_embedding(semantic_query)
-
-        # Initial semantic search - get more results for filtering
-    
+        query_embedding = await self._get_embedding(semantic_query)
+        
+        # Initial search with larger limit to allow for filtering
+        initial_limit = min(limit * 2, 4000)
         results = self.collection.query(
             query_embeddings=[query_embedding],
-            n_results=limit,
+            n_results=initial_limit,
             where=where_filter,
             include=['documents', 'metadatas', 'distances']
         )
         
-        if self.verbose:
-            print(f"\nRaw distances sample: {results['distances'][0][:3]}")
-        
-        # Convert distances to similarities
-        similarities = self._normalize_distances(results['distances'][0])
-        
-        if self.verbose:
-            print(f"Normalized similarities sample: {similarities[:3]}")
-        
-        # Combine results with similarity scores
-        combined_results = []
-        for i in range(len(results['ids'][0])):
-            result = {
-                'id': results['ids'][0][i],
-                'content': results['documents'][0][i],
-                'metadata': results['metadatas'][0][i],
-                'raw_distance': results['distances'][0][i],
-                'similarity': similarities[i]
+        # Early exit if no results
+        if not results['ids'][0]:
+            return {
+                "type": "empty",
+                "message": "No results found matching the criteria",
+                "query_info": intent.model_dump()
             }
-            combined_results.append(result)
-            
-        # Sort by similarity descending
-        combined_results.sort(key=lambda x: x['similarity'], reverse=True)
 
+        distances = results['distances'][0]
         
-        # Consolidate similar results
-        consolidated_results = self._consolidate_results(combined_results)
-
-        # Take top results after consolidation
-        final_results = consolidated_results[:limit]
-
-        # Format for output
-        output = {
-            "type": intent.type,
-            "total_results": len(combined_results),
-            "consolidated_results": len(consolidated_results),
-            "returned_results": len(final_results),
-            "results": [
-                {
-                    "id": r['id'],
-                    "subject": r['metadata']['subject'],
-                    "from": r['metadata']['from'],
-                    "company": r['metadata'].get('company', 'unknown'),
-                    "date": r['metadata']['date'],
-                    "content": r['content'],
-                    "distance": 1 - r['similarity'],  # Convert back to distance for consistency
-                    "thread_id": r['metadata'].get('thread_id')  # Include thread ID if available
-                }
-                for r in final_results
-            ]
-        }
-
-
+        # Find relevance cliff
+        min_distance = min(distances)
+        threshold = min_distance * 2.5  # Results with distance > 2.5x the best match are considered irrelevant
+        
+        # Filter results by threshold
+        relevant_indices = []
+        for i, distance in enumerate(distances):
+            if distance <= threshold:
+                relevant_indices.append(i)
+            else:
+                # Stop when we hit irrelevant results
+                break
+                
         if self.verbose:
-            print(f"\nFound {output['total_results']} results")
-            print(f"Consolidated to {output['consolidated_results']} unique results")
-            print(f"Returning top {output['returned_results']} results")
+            print(f"\nRelevance filtering:")
+            print(f"Best match distance: {min_distance:.3f}")
+            print(f"Threshold: {threshold:.3f}")
+            print(f"Relevant results: {len(relevant_indices)}/{len(distances)}")
 
-        return output
+        # Build final results
+        filtered_results = []
+        for i in relevant_indices:
+            metadata = self._format_email_metadata(results['metadatas'][0][i])
+            filtered_results.append({
+                "id": results['ids'][0][i],
+                "subject": metadata.get('subject', 'No subject'),
+                "from": metadata.get('from', 'Unknown sender'),
+                "company": metadata.get('company', 'unknown'),
+                "date": metadata.get('date'),
+                "content": results['documents'][0][i],
+                "distance": distances[i]
+            })
 
+        return {
+            "type": intent.type,
+            "total_results": len(filtered_results),
+            "results": filtered_results,
+            "query_info": intent.model_dump(),
+            "threshold_info": {
+                "min_distance": min_distance,
+                "threshold": threshold,
+                "total_retrieved": len(distances)
+            }
+        }
